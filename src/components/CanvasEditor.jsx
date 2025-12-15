@@ -8,6 +8,7 @@ const MIN_SIZE = 20;
 export default function CanvasEditor() {
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
+    const restoreInputRef = useRef(null);
 
     // Use refs for mutable state to avoid re-renders during high-frequency events (drag/draw)
     const imagesRef = useRef([]);
@@ -302,6 +303,70 @@ export default function CanvasEditor() {
         draw();
     };
 
+    const handleBackup = () => {
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        if (!storedData) {
+            alert("저장된 데이터가 없습니다.");
+            return;
+        }
+
+        const blob = new Blob([storedData], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        const date = new Date();
+        const timestamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}`;
+        link.download = `vision-note-backup-${timestamp}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleRestore = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const jsonContent = event.target.result;
+                const parsedData = JSON.parse(jsonContent);
+
+                if (!Array.isArray(parsedData)) {
+                    throw new Error("Invalid backup file format");
+                }
+
+                // Validate basic structure if needed, or just trust it for now but handle image loading
+                Promise.all(parsedData.map(data =>
+                    new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve({ ...data, img });
+                        img.onerror = () => resolve(null);
+                        img.src = data.base64Data;
+                    })
+                )).then(images => {
+                    const validImages = images.filter(Boolean);
+                    imagesRef.current = validImages;
+                    saveImages(); // Save to local storage
+
+                    selectedImageRef.current = null;
+                    setSelectedImageName('없음');
+                    saveSelection(null);
+
+                    draw();
+                    alert("복구가 완료되었습니다.");
+                });
+
+            } catch (err) {
+                console.error("Failed to restore:", err);
+                alert("백업 파일을 불러오는 중 오류가 발생했습니다.");
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // Reset input
+    };
+
     const handleMouseDown = (e) => {
         e.preventDefault(); // Prevent scrolling on touch
         const pos = getMousePos(e);
@@ -531,6 +596,28 @@ export default function CanvasEditor() {
                         className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
                         초기화
                     </button>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+
+                    <button
+                        onClick={handleBackup}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto">
+                        백업 저장
+                    </button>
+
+                    <label htmlFor="restoreInput"
+                        className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto text-center"
+                    >
+                        백업 불러오기
+                    </label>
+                    <input
+                        type="file"
+                        id="restoreInput"
+                        ref={restoreInputRef}
+                        accept=".json"
+                        className="hidden"
+                        onChange={handleRestore}
+                    />
 
                     <div className="text-sm font-medium text-gray-700">
                         <span className="font-semibold text-indigo-600">{selectedImageName !== '없음' ? selectedImageName : ''}</span>
