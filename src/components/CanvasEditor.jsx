@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import * as db from '../utils/indexedDB';
 
 const STORAGE_KEY = 'canvasImageEditorState';
 const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
@@ -191,19 +192,19 @@ export default function CanvasEditor() {
 
     // --- Save/Load Functions ---
 
-    const saveSelection = (id) => {
+    const saveSelection = async (id) => {
         try {
             if (id) {
-                localStorage.setItem(STORAGE_SELECTION_KEY, id.toString());
+                await db.setItem(STORAGE_SELECTION_KEY, id.toString());
             } else {
-                localStorage.removeItem(STORAGE_SELECTION_KEY);
+                await db.removeItem(STORAGE_SELECTION_KEY);
             }
         } catch (e) {
             console.error("Failed to save selection:", e);
         }
     };
 
-    const saveImages = () => {
+    const saveImages = async () => {
         try {
             const storableImages = imagesRef.current.map(img => ({
                 x: img.x,
@@ -218,7 +219,7 @@ export default function CanvasEditor() {
                 text: img.text,
                 color: img.color
             }));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(storableImages));
+            await db.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
             console.error("Failed to save to localStorage:", e);
             if (e.name === 'QuotaExceededError') {
@@ -227,10 +228,10 @@ export default function CanvasEditor() {
         }
     };
 
-    const loadImages = () => {
+    const loadImages = async () => {
         try {
-            const storedData = localStorage.getItem(STORAGE_KEY);
-            if (!storedData) return Promise.resolve([]);
+            const storedData = await db.getItem(STORAGE_KEY);
+            if (!storedData) return [];
 
             const loadedImagesData = JSON.parse(storedData);
             return Promise.all(loadedImagesData.map(data =>
@@ -258,7 +259,7 @@ export default function CanvasEditor() {
             });
         } catch (e) {
             console.error("Failed to load from localStorage:", e);
-            return Promise.resolve([]);
+            return [];
         }
     };
 
@@ -390,20 +391,20 @@ export default function CanvasEditor() {
         setShowResetConfirm(true);
     };
 
-    const confirmReset = () => {
+    const confirmReset = async () => {
         imagesRef.current = [];
         selectedImageRef.current = null;
         setSelectedImageName('없음');
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(STORAGE_SELECTION_KEY);
+        await db.removeItem(STORAGE_KEY);
+        await db.removeItem(STORAGE_SELECTION_KEY);
         setIsTextSelected(false);
         setTextContent('');
         draw();
         setShowResetConfirm(false);
     };
 
-    const handleBackup = () => {
-        const storedData = localStorage.getItem(STORAGE_KEY);
+    const handleBackup = async () => {
+        const storedData = await db.getItem(STORAGE_KEY);
         if (!storedData) {
             alert("저장된 데이터가 없습니다.");
             return;
@@ -621,12 +622,12 @@ export default function CanvasEditor() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        loadImages().then(images => {
+        loadImages().then(async images => {
             if (!isMounted) return;
             imagesRef.current = images;
 
             // Restore Selection
-            const storedSelectionId = localStorage.getItem(STORAGE_SELECTION_KEY);
+            const storedSelectionId = await db.getItem(STORAGE_SELECTION_KEY);
             if (storedSelectionId) {
                 const selected = imagesRef.current.find(i => i.id.toString() === storedSelectionId);
                 if (selected) {
