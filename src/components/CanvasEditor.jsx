@@ -31,6 +31,7 @@ export default function CanvasEditor() {
     // Text Addition Modal State
     const [showAddTextModal, setShowAddTextModal] = useState(false);
     const [newTextContent, setNewTextContent] = useState('');
+    const [editingItemId, setEditingItemId] = useState(null);
 
     // --- Helper Functions ---
 
@@ -124,26 +125,34 @@ export default function CanvasEditor() {
         if (item.type === 'text') {
             // Text drawing logic
             const fontSize = 100; // Base resolution for scaling
+            const lineHeight = fontSize * 1.2;
             ctx.font = `bold ${fontSize}px sans-serif`;
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'center';
 
-            // Just use the width/height to scale. 
-            // We assume the text "wants" to be drawn at 'fontSize' height.
-            // We measure it to get the aspect ratio it "wants" vs what it "has".
-            const metrics = ctx.measureText(item.text);
-            const naturalWidth = metrics.width;
-            const naturalHeight = fontSize; // Approximate height
+            const lines = item.text.split('\n');
+            let maxLineWidth = 0;
+            lines.forEach(line => {
+                const w = ctx.measureText(line).width;
+                if (w > maxLineWidth) maxLineWidth = w;
+            });
+
+            // Ensure at least some width to prevent division by zero
+            maxLineWidth = Math.max(maxLineWidth, fontSize);
+
+            const totalReferenceHeight = lines.length * lineHeight;
 
             // Scale to fit the bounding box
-            // If we just added it, width/height match natural size.
-            // If resized, we stretch.
-            const scaleX = item.width / naturalWidth;
-            const scaleY = item.height / naturalHeight;
+            const scaleX = item.width / maxLineWidth;
+            const scaleY = item.height / totalReferenceHeight;
 
             ctx.scale(scaleX, scaleY);
             ctx.fillStyle = item.color || '#000000';
-            ctx.fillText(item.text, 0, 0);
+
+            lines.forEach((line, index) => {
+                const y = (index - (lines.length - 1) / 2) * lineHeight;
+                ctx.fillText(line, 0, y);
+            });
         } else {
             // Image drawing logic
             if (item.img) {
@@ -641,15 +650,13 @@ export default function CanvasEditor() {
 
                     <label htmlFor="fileInput"
                         className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
-                        <svg className="w-5 h-5 mr-2 -ml-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M5.5 13a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zm11-4a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zM12 2a2 2 0 00-2 2v1h4V4a2 2 0 00-2-2zM4 9a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2H4z"></path>
-                        </svg>
                         사진 추가
                     </label>
 
                     <button
                         onClick={() => {
                             setNewTextContent('');
+                            setEditingItemId(null);
                             setShowAddTextModal(true);
                         }}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out w-full sm:w-auto">
@@ -658,23 +665,18 @@ export default function CanvasEditor() {
 
                     {isTextSelected && (
                         <div className="flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={textContent}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setTextContent(val);
+                            <button
+                                onClick={() => {
                                     if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
-                                        selectedImageRef.current.text = val;
-                                        selectedImageRef.current.name = val;
-                                        setSelectedImageName(val);
-                                        saveImages();
-                                        draw();
+                                        setNewTextContent(selectedImageRef.current.text);
+                                        setEditingItemId(selectedImageRef.current.id);
+                                        setShowAddTextModal(true);
                                     }
                                 }}
-                                className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
-                                placeholder="텍스트 입력"
-                            />
+                                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-gray-700"
+                            >
+                                텍스트 수정
+                            </button>
                             <input
                                 type="color"
                                 value={textColor}
@@ -777,36 +779,70 @@ export default function CanvasEditor() {
 
                                     const text = newTextContent;
                                     const fontSize = 100;
+                                    const lineHeight = fontSize * 1.2;
                                     const canvas = document.createElement('canvas'); // Temp for measurement
                                     const ctx = canvas.getContext('2d');
                                     ctx.font = `bold ${fontSize}px sans-serif`;
-                                    const metrics = ctx.measureText(text);
-                                    const width = metrics.width;
-                                    const height = fontSize;
 
-                                    const newImage = {
-                                        type: 'text',
-                                        text: text,
-                                        color: '#000000',
-                                        x: (canvasSize.width - width) / 2,
-                                        y: (canvasSize.height - height) / 2,
-                                        width: width,
-                                        height: height,
-                                        rotation: 0,
-                                        name: text.length > 10 ? text.substring(0, 10) + '...' : text,
-                                        id: Date.now() + Math.random()
-                                    };
+                                    const lines = text.split('\n');
+                                    let maxLineWidth = 0;
+                                    lines.forEach(line => {
+                                        const w = ctx.measureText(line).width;
+                                        if (w > maxLineWidth) maxLineWidth = w;
+                                    });
+                                    maxLineWidth = Math.max(maxLineWidth, fontSize);
 
-                                    imagesRef.current.push(newImage);
-                                    selectedImageRef.current = newImage;
-                                    setSelectedImageName(newImage.name);
-                                    setIsTextSelected(true);
-                                    setTextContent(newImage.text);
-                                    setTextColor(newImage.color);
+                                    const width = maxLineWidth;
+                                    const height = lines.length * lineHeight;
+
+                                    if (editingItemId) {
+                                        // Update existing item
+                                        // Refetch to do it right:
+                                        const foundIndex = imagesRef.current.findIndex(i => i.id === editingItemId);
+                                        if (foundIndex !== -1) {
+                                            const it = imagesRef.current[foundIndex];
+                                            const oldCenterX = it.x + it.width / 2;
+                                            const oldCenterY = it.y + it.height / 2;
+
+                                            it.text = text;
+                                            it.name = text.length > 10 ? text.substring(0, 10) + '...' : text;
+                                            it.width = width;
+                                            it.height = height;
+                                            it.x = oldCenterX - width / 2;
+                                            it.y = oldCenterY - height / 2;
+
+                                            selectedImageRef.current = it;
+                                            setSelectedImageName(it.name);
+                                            setIsTextSelected(true);
+                                            setTextContent(text);
+                                        }
+                                    } else {
+                                        // Create new item
+                                        const newImage = {
+                                            type: 'text',
+                                            text: text,
+                                            color: '#000000',
+                                            x: (canvasSize.width - width) / 2,
+                                            y: (canvasSize.height - height) / 2,
+                                            width: width,
+                                            height: height,
+                                            rotation: 0,
+                                            name: text.length > 10 ? text.substring(0, 10) + '...' : text,
+                                            id: Date.now() + Math.random()
+                                        };
+                                        imagesRef.current.push(newImage);
+                                        selectedImageRef.current = newImage;
+                                        setSelectedImageName(newImage.name);
+                                        setIsTextSelected(true);
+                                        setTextContent(newImage.text);
+                                        setTextColor(newImage.color);
+                                    }
+
                                     saveImages();
-                                    saveSelection(newImage.id);
+                                    editingItemId ? saveSelection(editingItemId) : saveSelection(selectedImageRef.current.id);
                                     draw();
                                     setShowAddTextModal(false);
+                                    setEditingItemId(null);
                                 }}
                                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
                             >
