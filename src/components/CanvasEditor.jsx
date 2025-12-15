@@ -178,38 +178,31 @@ export default function CanvasEditor() {
     const loadImages = () => {
         try {
             const storedData = localStorage.getItem(STORAGE_KEY);
-            const storedSelectionId = localStorage.getItem(STORAGE_SELECTION_KEY);
+            if (!storedData) return Promise.resolve([]);
 
-            if (storedData) {
-                const loadedImagesData = JSON.parse(storedData);
-                imagesRef.current = [];
-                let imagesLoadedCount = 0;
-
-                loadedImagesData.forEach(data => {
+            const loadedImagesData = JSON.parse(storedData);
+            return Promise.all(loadedImagesData.map(data =>
+                new Promise((resolve) => {
                     const img = new Image();
-                    img.onload = () => {
-                        imagesRef.current.push({
-                            ...data,
-                            img: img
-                        });
-                        imagesLoadedCount++;
-                        if (imagesLoadedCount === loadedImagesData.length) {
-                            // Restore Selection
-                            if (storedSelectionId) {
-                                const selected = imagesRef.current.find(i => i.id.toString() === storedSelectionId);
-                                if (selected) {
-                                    selectedImageRef.current = selected;
-                                    setSelectedImageName(selected.name);
-                                }
-                            }
-                            draw();
-                        }
-                    };
+                    img.onload = () => resolve({ ...data, img });
+                    img.onerror = () => resolve(null);
                     img.src = data.base64Data;
+                })
+            )).then(images => {
+                const validImages = images.filter(Boolean);
+                const uniqueImages = [];
+                const seenIds = new Set();
+                validImages.forEach(img => {
+                    if (!seenIds.has(img.id)) {
+                        seenIds.add(img.id);
+                        uniqueImages.push(img);
+                    }
                 });
-            }
+                return uniqueImages;
+            });
         } catch (e) {
             console.error("Failed to load from localStorage:", e);
+            return Promise.resolve([]);
         }
     };
 
@@ -427,6 +420,7 @@ export default function CanvasEditor() {
     // --- Effects ---
 
     useEffect(() => {
+        let isMounted = true;
         const handleResize = () => {
             const newWidth = window.innerWidth;
             const newHeight = window.innerHeight;
@@ -447,7 +441,21 @@ export default function CanvasEditor() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        loadImages();
+        loadImages().then(images => {
+            if (!isMounted) return;
+            imagesRef.current = images;
+
+            // Restore Selection
+            const storedSelectionId = localStorage.getItem(STORAGE_SELECTION_KEY);
+            if (storedSelectionId) {
+                const selected = imagesRef.current.find(i => i.id.toString() === storedSelectionId);
+                if (selected) {
+                    selectedImageRef.current = selected;
+                    setSelectedImageName(selected.name);
+                }
+            }
+            draw();
+        });
 
         // Window event listeners for drag outside canvas
         const onMouseMove = (e) => handleMouseMove(e);
@@ -482,6 +490,7 @@ export default function CanvasEditor() {
         window.addEventListener('keydown', handleKeyDown);
 
         return () => {
+            isMounted = false;
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
