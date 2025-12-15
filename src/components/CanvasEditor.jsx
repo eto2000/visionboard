@@ -822,9 +822,9 @@ export default function CanvasEditor() {
                         onChange={handleRestore}
                     />
 
-                    <div className="text-sm font-medium text-gray-700">
+                    {/* <div className="text-sm font-medium text-gray-700">
                         <span className="font-semibold text-indigo-600">{selectedImageName !== '없음' ? selectedImageName : ''}</span>
-                    </div>
+                    </div> */}
                 </div>
             </div>
 
