@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'canvasImageEditorState';
+const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
 const CONTROL_HANDLE_SIZE = 12;
 const MIN_SIZE = 20;
 const CANVAS_WIDTH = 800;
@@ -144,6 +145,18 @@ export default function CanvasEditor() {
 
     // --- Save/Load Functions ---
 
+    const saveSelection = (id) => {
+        try {
+            if (id) {
+                localStorage.setItem(STORAGE_SELECTION_KEY, id.toString());
+            } else {
+                localStorage.removeItem(STORAGE_SELECTION_KEY);
+            }
+        } catch (e) {
+            console.error("Failed to save selection:", e);
+        }
+    };
+
     const saveImages = () => {
         try {
             const storableImages = imagesRef.current.map(img => ({
@@ -159,12 +172,17 @@ export default function CanvasEditor() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
             console.error("Failed to save to localStorage:", e);
+            if (e.name === 'QuotaExceededError') {
+                alert("저장 공간이 부족합니다. 이미지를 줄이거나 캐시를 비워주세요.");
+            }
         }
     };
 
     const loadImages = () => {
         try {
             const storedData = localStorage.getItem(STORAGE_KEY);
+            const storedSelectionId = localStorage.getItem(STORAGE_SELECTION_KEY);
+
             if (storedData) {
                 const loadedImagesData = JSON.parse(storedData);
                 imagesRef.current = [];
@@ -179,6 +197,14 @@ export default function CanvasEditor() {
                         });
                         imagesLoadedCount++;
                         if (imagesLoadedCount === loadedImagesData.length) {
+                            // Restore Selection
+                            if (storedSelectionId) {
+                                const selected = imagesRef.current.find(i => i.id.toString() === storedSelectionId);
+                                if (selected) {
+                                    selectedImageRef.current = selected;
+                                    setSelectedImageName(selected.name);
+                                }
+                            }
                             draw();
                         }
                     };
@@ -216,6 +242,7 @@ export default function CanvasEditor() {
                 selectedImageRef.current = newImage;
                 setSelectedImageName(newImage.name);
                 saveImages();
+                saveSelection(newImage.id); // Save selection immediately
                 draw();
             };
             img.src = base64Data;
@@ -236,6 +263,7 @@ export default function CanvasEditor() {
         selectedImageRef.current = null;
         setSelectedImageName('없음');
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_SELECTION_KEY);
         draw();
     };
 
@@ -266,6 +294,7 @@ export default function CanvasEditor() {
                 };
 
                 setSelectedImageName(image.name);
+                saveSelection(image.id); // Save (refresh) selection
                 draw();
                 return;
             }
@@ -287,12 +316,18 @@ export default function CanvasEditor() {
 
             originalPropsRef.current = { x: clickedImage.x, y: clickedImage.y };
             setSelectedImageName(clickedImage.name);
+            saveSelection(clickedImage.id); // Save selection
         } else {
             selectedImageRef.current = null;
             isDraggingRef.current = false;
             isResizingOrRotatingRef.current = false;
             setSelectedImageName('없음');
+            saveSelection(null); // Clear selection
         }
+
+        // Always save order changes if occurred (e.g. bring to front)
+        if (clickedImage) saveImages();
+
         draw();
     };
 
@@ -384,6 +419,7 @@ export default function CanvasEditor() {
                 selectedImageRef.current = null;
                 setSelectedImageName('없음');
                 saveImages();
+                saveSelection(null); // Clear selection
                 draw();
             }
         };
