@@ -482,8 +482,8 @@ export default function CanvasEditor() {
 
     return (
         <div className="max-w-4xl w-full">
-            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">사진 캔버스 편집기</h1>
-            <p className="text-gray-500 mb-6">다수의 이미지를 업로드하고, 이동, 크기 조절, 회전하여 배치해보세요. (브라우저를 닫아도 상태가 유지됩니다.)</p>
+            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Vision Board</h1>
+            {/* <p className="text-gray-500 mb-6">Upload multiple images and arrange them on the canvas by moving, resizing, and rotating. (Your browser will remember the state even if you close it.)</p> */}
 
             {/* 컨트롤 패널 */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-white rounded-xl shadow-md border border-gray-100">
