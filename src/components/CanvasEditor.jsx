@@ -23,6 +23,11 @@ export default function CanvasEditor() {
     const selectedImageRef = useRef(null);
     const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
+    // Text editing state
+    const [isTextSelected, setIsTextSelected] = useState(false);
+    const [textContent, setTextContent] = useState('');
+    const [textColor, setTextColor] = useState('#000000');
+
     // --- Helper Functions ---
 
     const getMousePos = (event) => {
@@ -96,8 +101,8 @@ export default function CanvasEditor() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         imagesRef.current.forEach(image => {
-            if (image.img && image.img.complete) {
-                drawImage(ctx, image);
+            if (image.type === 'text' || (image.img && image.img.complete)) {
+                drawItem(ctx, image);
             }
             if (image === selectedImageRef.current) {
                 drawControls(ctx, image);
@@ -105,13 +110,42 @@ export default function CanvasEditor() {
         });
     };
 
-    const drawImage = (ctx, image) => {
+    const drawItem = (ctx, item) => {
         ctx.save();
-        const centerX = image.x + image.width / 2;
-        const centerY = image.y + image.height / 2;
+        const centerX = item.x + item.width / 2;
+        const centerY = item.y + item.height / 2;
         ctx.translate(centerX, centerY);
-        ctx.rotate(image.rotation);
-        ctx.drawImage(image.img, -image.width / 2, -image.height / 2, image.width, image.height);
+        ctx.rotate(item.rotation);
+
+        if (item.type === 'text') {
+            // Text drawing logic
+            const fontSize = 100; // Base resolution for scaling
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+
+            // Just use the width/height to scale. 
+            // We assume the text "wants" to be drawn at 'fontSize' height.
+            // We measure it to get the aspect ratio it "wants" vs what it "has".
+            const metrics = ctx.measureText(item.text);
+            const naturalWidth = metrics.width;
+            const naturalHeight = fontSize; // Approximate height
+
+            // Scale to fit the bounding box
+            // If we just added it, width/height match natural size.
+            // If resized, we stretch.
+            const scaleX = item.width / naturalWidth;
+            const scaleY = item.height / naturalHeight;
+
+            ctx.scale(scaleX, scaleY);
+            ctx.fillStyle = item.color || '#000000';
+            ctx.fillText(item.text, 0, 0);
+        } else {
+            // Image drawing logic
+            if (item.img) {
+                ctx.drawImage(item.img, -item.width / 2, -item.height / 2, item.width, item.height);
+            }
+        }
         ctx.restore();
     };
 
@@ -165,7 +199,10 @@ export default function CanvasEditor() {
                 rotation: img.rotation,
                 name: img.name,
                 base64Data: img.base64Data,
-                id: img.id
+                id: img.id,
+                type: img.type || 'image',
+                text: img.text,
+                color: img.color
             }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
@@ -184,10 +221,14 @@ export default function CanvasEditor() {
             const loadedImagesData = JSON.parse(storedData);
             return Promise.all(loadedImagesData.map(data =>
                 new Promise((resolve) => {
-                    const img = new Image();
-                    img.onload = () => resolve({ ...data, img });
-                    img.onerror = () => resolve(null);
-                    img.src = data.base64Data;
+                    if (data.type === 'text') {
+                        resolve(data);
+                    } else {
+                        const img = new Image();
+                        img.onload = () => resolve({ ...data, img });
+                        img.onerror = () => resolve(null);
+                        img.src = data.base64Data;
+                    }
                 })
             )).then(images => {
                 const validImages = images.filter(Boolean);
@@ -300,6 +341,8 @@ export default function CanvasEditor() {
         setSelectedImageName('없음');
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(STORAGE_SELECTION_KEY);
+        setIsTextSelected(false);
+        setTextContent('');
         draw();
     };
 
@@ -340,10 +383,14 @@ export default function CanvasEditor() {
                 // Validate basic structure if needed, or just trust it for now but handle image loading
                 Promise.all(parsedData.map(data =>
                     new Promise((resolve) => {
-                        const img = new Image();
-                        img.onload = () => resolve({ ...data, img });
-                        img.onerror = () => resolve(null);
-                        img.src = data.base64Data;
+                        if (data.type === 'text') {
+                            resolve(data);
+                        } else {
+                            const img = new Image();
+                            img.onload = () => resolve({ ...data, img });
+                            img.onerror = () => resolve(null);
+                            img.src = data.base64Data;
+                        }
                     })
                 )).then(images => {
                     const validImages = images.filter(Boolean);
@@ -352,6 +399,7 @@ export default function CanvasEditor() {
 
                     selectedImageRef.current = null;
                     setSelectedImageName('없음');
+                    setIsTextSelected(false);
                     saveSelection(null);
 
                     draw();
@@ -416,12 +464,23 @@ export default function CanvasEditor() {
 
             originalPropsRef.current = { x: clickedImage.x, y: clickedImage.y };
             setSelectedImageName(clickedImage.name);
+
+            if (clickedImage.type === 'text') {
+                setIsTextSelected(true);
+                setTextContent(clickedImage.text);
+                setTextColor(clickedImage.color || '#000000');
+            } else {
+                setIsTextSelected(false);
+            }
+
             saveSelection(clickedImage.id); // Save selection
         } else {
             selectedImageRef.current = null;
             isDraggingRef.current = false;
             isResizingOrRotatingRef.current = false;
+            isResizingOrRotatingRef.current = false;
             setSelectedImageName('없음');
+            setIsTextSelected(false);
             saveSelection(null); // Clear selection
         }
 
@@ -546,7 +605,9 @@ export default function CanvasEditor() {
                 const selectedImage = selectedImageRef.current;
                 imagesRef.current = imagesRef.current.filter(img => img !== selectedImage);
                 selectedImageRef.current = null;
+                selectedImageRef.current = null;
                 setSelectedImageName('없음');
+                setIsTextSelected(false);
                 saveImages();
                 saveSelection(null); // Clear selection
                 draw();
@@ -581,6 +642,81 @@ export default function CanvasEditor() {
                         </svg>
                         사진 추가
                     </label>
+
+                    <button
+                        onClick={() => {
+                            const text = "텍스트";
+                            const fontSize = 100;
+                            const canvas = document.createElement('canvas'); // Temp for measurement
+                            const ctx = canvas.getContext('2d');
+                            ctx.font = `bold ${fontSize}px sans-serif`;
+                            const metrics = ctx.measureText(text);
+                            const width = metrics.width;
+                            const height = fontSize;
+
+                            const newImage = {
+                                type: 'text',
+                                text: text,
+                                color: '#000000',
+                                x: (canvasSize.width - width) / 2,
+                                y: (canvasSize.height - height) / 2,
+                                width: width,
+                                height: height,
+                                rotation: 0,
+                                name: '텍스트',
+                                id: Date.now() + Math.random()
+                            };
+
+                            imagesRef.current.push(newImage);
+                            selectedImageRef.current = newImage;
+                            setSelectedImageName(newImage.name);
+                            setIsTextSelected(true);
+                            setTextContent(newImage.text);
+                            setTextColor(newImage.color);
+                            saveImages();
+                            saveSelection(newImage.id);
+                            draw();
+                        }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out w-full sm:w-auto">
+                        텍스트 추가
+                    </button>
+
+                    {isTextSelected && (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={textContent}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTextContent(val);
+                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                        selectedImageRef.current.text = val;
+                                        selectedImageRef.current.name = val;
+                                        setSelectedImageName(val);
+                                        saveImages();
+                                        draw();
+                                    }
+                                }}
+                                className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
+                                placeholder="텍스트 입력"
+                            />
+                            <input
+                                type="color"
+                                value={textColor}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTextColor(val);
+                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                        selectedImageRef.current.color = val;
+                                        saveImages();
+                                        draw();
+                                    }
+                                }}
+                                className="w-8 h-8 rounded cursor-pointer border border-gray-300 p-0"
+                            />
+                        </div>
+                    )}
+
                     <input
                         type="file"
                         id="fileInput"
