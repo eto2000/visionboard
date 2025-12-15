@@ -28,6 +28,10 @@ export default function CanvasEditor() {
     const [textContent, setTextContent] = useState('');
     const [textColor, setTextColor] = useState('#000000');
 
+    // Text Addition Modal State
+    const [showAddTextModal, setShowAddTextModal] = useState(false);
+    const [newTextContent, setNewTextContent] = useState('');
+
     // --- Helper Functions ---
 
     const getMousePos = (event) => {
@@ -645,37 +649,8 @@ export default function CanvasEditor() {
 
                     <button
                         onClick={() => {
-                            const text = "텍스트";
-                            const fontSize = 100;
-                            const canvas = document.createElement('canvas'); // Temp for measurement
-                            const ctx = canvas.getContext('2d');
-                            ctx.font = `bold ${fontSize}px sans-serif`;
-                            const metrics = ctx.measureText(text);
-                            const width = metrics.width;
-                            const height = fontSize;
-
-                            const newImage = {
-                                type: 'text',
-                                text: text,
-                                color: '#000000',
-                                x: (canvasSize.width - width) / 2,
-                                y: (canvasSize.height - height) / 2,
-                                width: width,
-                                height: height,
-                                rotation: 0,
-                                name: '텍스트',
-                                id: Date.now() + Math.random()
-                            };
-
-                            imagesRef.current.push(newImage);
-                            selectedImageRef.current = newImage;
-                            setSelectedImageName(newImage.name);
-                            setIsTextSelected(true);
-                            setTextContent(newImage.text);
-                            setTextColor(newImage.color);
-                            saveImages();
-                            saveSelection(newImage.id);
-                            draw();
+                            setNewTextContent('');
+                            setShowAddTextModal(true);
                         }}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out w-full sm:w-auto">
                         텍스트 추가
@@ -773,6 +748,74 @@ export default function CanvasEditor() {
                     }}
                 />
             </div>
+
+            {/* Text Input Modal */}
+            {showAddTextModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-96 transform transition-all scale-100">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">텍스트 추가</h2>
+                        <textarea
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none h-32 text-gray-800 mb-4"
+                            placeholder="내용을 입력하세요..."
+                            value={newTextContent}
+                            onChange={(e) => setNewTextContent(e.target.value)}
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowAddTextModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!newTextContent.trim()) {
+                                        alert("내용을 입력해주세요.");
+                                        return;
+                                    }
+
+                                    const text = newTextContent;
+                                    const fontSize = 100;
+                                    const canvas = document.createElement('canvas'); // Temp for measurement
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.font = `bold ${fontSize}px sans-serif`;
+                                    const metrics = ctx.measureText(text);
+                                    const width = metrics.width;
+                                    const height = fontSize;
+
+                                    const newImage = {
+                                        type: 'text',
+                                        text: text,
+                                        color: '#000000',
+                                        x: (canvasSize.width - width) / 2,
+                                        y: (canvasSize.height - height) / 2,
+                                        width: width,
+                                        height: height,
+                                        rotation: 0,
+                                        name: text.length > 10 ? text.substring(0, 10) + '...' : text,
+                                        id: Date.now() + Math.random()
+                                    };
+
+                                    imagesRef.current.push(newImage);
+                                    selectedImageRef.current = newImage;
+                                    setSelectedImageName(newImage.name);
+                                    setIsTextSelected(true);
+                                    setTextContent(newImage.text);
+                                    setTextColor(newImage.color);
+                                    saveImages();
+                                    saveSelection(newImage.id);
+                                    draw();
+                                    setShowAddTextModal(false);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
+                            >
+                                완료
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
