@@ -294,7 +294,7 @@ export default function CanvasEditor() {
                     ctx.drawImage(img, 0, 0, width, height);
 
                     // Compress to WebP with 0.8 quality
-                    const compressedDataUrl = canvas.toDataURL('image/webp', 0.75);
+                    const compressedDataUrl = canvas.toDataURL('image/webp', 0.8);
                     resolve({
                         base64Data: compressedDataUrl,
                         width,
