@@ -4,8 +4,6 @@ const STORAGE_KEY = 'canvasImageEditorState';
 const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
 const CONTROL_HANDLE_SIZE = 12;
 const MIN_SIZE = 20;
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 500;
 
 export default function CanvasEditor() {
     const canvasRef = useRef(null);
@@ -20,10 +18,9 @@ export default function CanvasEditor() {
 
     // State for UI updates
     const [selectedImageName, setSelectedImageName] = useState('없음');
-    const [selectedImageId, setSelectedImageId] = useState(null); // Use ID or reference comparison? ref comparison is tricky with state, store index or unique ID.
-    // Actually, we can store the "selected image object" in a ref, but to trigger UI update for name, we need state.
-    // Let's keep `selectedImageRef` for logic and `selectedImageName` for UI.
+    const [selectedImageId, setSelectedImageId] = useState(null);
     const selectedImageRef = useRef(null);
+    const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
     // --- Helper Functions ---
 
@@ -265,14 +262,14 @@ export default function CanvasEditor() {
 
             const img = new Image();
             img.onload = () => {
-                const scale = Math.min(1, Math.min(CANVAS_WIDTH / width / 2, CANVAS_HEIGHT / height / 2));
+                const scale = Math.min(1, Math.min(canvasSize.width / width / 2, canvasSize.height / height / 2));
                 const newWidth = width * scale;
                 const newHeight = height * scale;
 
                 const newImage = {
                     img: img,
-                    x: (CANVAS_WIDTH - newWidth) / 2,
-                    y: (CANVAS_HEIGHT - newHeight) / 2,
+                    x: (canvasSize.width - newWidth) / 2,
+                    y: (canvasSize.height - newHeight) / 2,
                     width: newWidth,
                     height: newHeight,
                     rotation: 0,
@@ -430,11 +427,25 @@ export default function CanvasEditor() {
     // --- Effects ---
 
     useEffect(() => {
+        const handleResize = () => {
+            const newWidth = window.innerWidth;
+            const newHeight = window.innerHeight;
+            setCanvasSize({ width: newWidth, height: newHeight });
+
+            // Update canvas DOM immediately to prevent flicker or clear
+            if (canvasRef.current) {
+                canvasRef.current.width = newWidth;
+                canvasRef.current.height = newHeight;
+                draw();
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+
         // Initial load
         const canvas = canvasRef.current;
-        // High-DPI display support could be added here but keeping simple for now (1:1 with CSS) const dpr = window.devicePixelRatio || 1;
-        canvas.width = CANVAS_WIDTH;
-        canvas.height = CANVAS_HEIGHT;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
         loadImages();
 
@@ -471,6 +482,7 @@ export default function CanvasEditor() {
         window.addEventListener('keydown', handleKeyDown);
 
         return () => {
+            window.removeEventListener('resize', handleResize);
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
             window.removeEventListener('touchmove', onTouchMove);
@@ -481,46 +493,48 @@ export default function CanvasEditor() {
     }, []);
 
     return (
-        <div className="max-w-4xl w-full">
-            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Vision Board</h1>
-            {/* <p className="text-gray-500 mb-6">Upload multiple images and arrange them on the canvas by moving, resizing, and rotating. (Your browser will remember the state even if you close it.)</p> */}
+        <div className="w-full h-screen flex flex-col relative overflow-hidden">
 
-            {/* 컨트롤 패널 */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-white rounded-xl shadow-md border border-gray-100">
-                <label htmlFor="fileInput"
-                    className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
-                    <svg className="w-5 h-5 mr-2 -ml-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5.5 13a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zm11-4a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zM12 2a2 2 0 00-2 2v1h4V4a2 2 0 00-2-2zM4 9a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2H4z"></path>
-                    </svg>
-                    사진 선택 (다중 선택 가능)
-                </label>
-                <input
-                    type="file"
-                    id="fileInput"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileInput}
-                />
+            {/* 컨트롤 패널 - Absolute position to float over or stay at top */}
+            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <h1 className="text-xl font-extrabold text-gray-800 mr-4">Vision Board</h1>
 
-                <button
-                    onClick={handleClear}
-                    className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                    캔버스 초기화 (저장된 데이터 삭제)
-                </button>
+                    <label htmlFor="fileInput"
+                        className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
+                        <svg className="w-5 h-5 mr-2 -ml-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5.5 13a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zm11-4a4.5 4.5 0 01-9 0 4.5 4.5 0 019 0zM12 2a2 2 0 00-2 2v1h4V4a2 2 0 00-2-2zM4 9a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2H4z"></path>
+                        </svg>
+                        사진 추가
+                    </label>
+                    <input
+                        type="file"
+                        id="fileInput"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileInput}
+                    />
 
-                <div className="text-sm font-medium text-gray-700 self-center">
-                    선택된 이미지: <span className="font-semibold text-indigo-600">{selectedImageName}</span>
+                    <button
+                        onClick={handleClear}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
+                        초기화
+                    </button>
+
+                    <div className="text-sm font-medium text-gray-700">
+                        <span className="font-semibold text-indigo-600">{selectedImageName !== '없음' ? selectedImageName : ''}</span>
+                    </div>
                 </div>
             </div>
 
             {/* 캔버스 영역 */}
-            <div className="flex justify-center items-center w-full h-auto min-h-[500px]">
+            <div className="flex-1 w-full h-full bg-gray-50">
                 <canvas
                     ref={canvasRef}
                     id="imageCanvas"
-                    className="border-2 border-gray-200 shadow-md bg-white touch-none"
+                    className="block touch-none"
                     onMouseDown={handleMouseDown}
                     onTouchStart={(e) => {
                         if (e.touches.length === 1) handleMouseDown(e);
