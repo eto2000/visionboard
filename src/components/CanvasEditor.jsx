@@ -642,6 +642,9 @@ export default function CanvasEditor() {
 
     return (
         <div className="w-full h-screen flex flex-col relative overflow-hidden">
+            <div className="absolute top-2 right-4 z-50 text-gray-400 text-xs font-medium pointer-events-none select-none">
+                soocoolkim@gmail.com
+            </div>
 
             {/* 컨트롤 패널 - Absolute position to float over or stay at top */}
             <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white">
