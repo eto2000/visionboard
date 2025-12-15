@@ -374,12 +374,28 @@ export default function CanvasEditor() {
         window.addEventListener('touchend', onTouchEnd);
         window.addEventListener('touchcancel', onTouchEnd);
 
+        window.addEventListener('touchcancel', onTouchEnd);
+
+        // Keyboard events
+        const handleKeyDown = (e) => {
+            if (e.key === 'Backspace' && selectedImageRef.current) {
+                const selectedImage = selectedImageRef.current;
+                imagesRef.current = imagesRef.current.filter(img => img !== selectedImage);
+                selectedImageRef.current = null;
+                setSelectedImageName('없음');
+                saveImages();
+                draw();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+
         return () => {
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
             window.removeEventListener('touchmove', onTouchMove);
             window.removeEventListener('touchend', onTouchEnd);
             window.removeEventListener('touchcancel', onTouchEnd);
+            window.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
 
