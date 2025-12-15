@@ -685,7 +685,7 @@ export default function CanvasEditor() {
 
     return (
         <div className="w-full h-screen flex flex-col relative overflow-hidden">
-            <div className="absolute top-2 right-4 z-50 text-gray-400 text-xs font-medium pointer-events-none select-none">
+            <div className="absolute bottom-2 right-4 z-50 text-gray-400 text-xs font-medium pointer-events-none select-none">
                 soocoolkim@gmail.com
             </div>
 
