@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* 폰트 설정 및 기본 스타일 */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f3f4f6;
+}
