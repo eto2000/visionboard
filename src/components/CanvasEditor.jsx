@@ -216,15 +216,58 @@ export default function CanvasEditor() {
         }
     };
 
-    const loadImageFromFile = (file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const base64Data = e.target.result;
+    const compressImage = async (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const MAX_WIDTH = 1024;
+                    const MAX_HEIGHT = 1024;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Compress to WebP with 0.8 quality
+                    const compressedDataUrl = canvas.toDataURL('image/webp', 0.8);
+                    resolve({
+                        base64Data: compressedDataUrl,
+                        width,
+                        height
+                    });
+                };
+            };
+        });
+    };
+
+    const loadImageFromFile = async (file) => {
+        try {
+            const { base64Data, width, height } = await compressImage(file);
+
             const img = new Image();
             img.onload = () => {
-                const scale = Math.min(1, Math.min(CANVAS_WIDTH / img.width / 2, CANVAS_HEIGHT / img.height / 2));
-                const newWidth = img.width * scale;
-                const newHeight = img.height * scale;
+                const scale = Math.min(1, Math.min(CANVAS_WIDTH / width / 2, CANVAS_HEIGHT / height / 2));
+                const newWidth = width * scale;
+                const newHeight = height * scale;
 
                 const newImage = {
                     img: img,
@@ -246,8 +289,10 @@ export default function CanvasEditor() {
                 draw();
             };
             img.src = base64Data;
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error("Image compression failed:", error);
+            alert("이미지 처리 중 오류가 발생했습니다.");
+        }
     };
 
     // --- Event Handlers ---
