@@ -32,6 +32,7 @@ export default function CanvasEditor() {
     const [showAddTextModal, setShowAddTextModal] = useState(false);
     const [newTextContent, setNewTextContent] = useState('');
     const [editingItemId, setEditingItemId] = useState(null);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     // --- Helper Functions ---
 
@@ -348,7 +349,11 @@ export default function CanvasEditor() {
         e.target.value = '';
     };
 
-    const handleClear = () => {
+    const handleResetClick = () => {
+        setShowResetConfirm(true);
+    };
+
+    const confirmReset = () => {
         imagesRef.current = [];
         selectedImageRef.current = null;
         setSelectedImageName('없음');
@@ -357,6 +362,7 @@ export default function CanvasEditor() {
         setIsTextSelected(false);
         setTextContent('');
         draw();
+        setShowResetConfirm(false);
     };
 
     const handleBackup = () => {
@@ -708,7 +714,7 @@ export default function CanvasEditor() {
                     />
 
                     <button
-                        onClick={handleClear}
+                        onClick={handleResetClick}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
                         초기화
                     </button>
@@ -718,13 +724,13 @@ export default function CanvasEditor() {
                     <button
                         onClick={handleBackup}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                        백업 저장
+                        백업
                     </button>
 
                     <label htmlFor="restoreInput"
                         className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto text-center"
                     >
-                        백업 불러오기
+                        불러오기
                     </label>
                     <input
                         type="file"
@@ -850,6 +856,33 @@ export default function CanvasEditor() {
                                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
                             >
                                 완료
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reset Confirmation Modal */}
+            {showResetConfirm && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-80 transform transition-all scale-100">
+                        <h2 className="text-lg font-bold text-gray-900 mb-2">초기화 확인</h2>
+                        <p className="text-sm text-gray-600 mb-6">
+                            작업 중인 모든 내용이 삭제됩니다.<br />
+                            정말 초기화하시겠습니까?
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowResetConfirm(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={confirmReset}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+                            >
+                                확인
                             </button>
                         </div>
                     </div>
