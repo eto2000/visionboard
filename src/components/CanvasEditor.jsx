@@ -349,6 +349,43 @@ export default function CanvasEditor() {
         e.target.value = '';
     };
 
+    const handleExport = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Draw white background
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        // Draw items
+        imagesRef.current.forEach(image => {
+            if (image.type === 'text' || (image.img && image.img.complete)) {
+                drawItem(tempCtx, image);
+            }
+        });
+
+        // Download
+        try {
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            const date = new Date();
+            const timestamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}`;
+            link.download = `vision-note-${timestamp}.png`;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (e) {
+            console.error("Export failed:", e);
+            alert("이미지 저장 중 오류가 발생했습니다.");
+        }
+    };
+
     const handleResetClick = () => {
         setShowResetConfirm(true);
     };
@@ -659,7 +696,7 @@ export default function CanvasEditor() {
 
                     <label htmlFor="fileInput"
                         className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
-                        사진 추가
+                        이미지
                     </label>
 
                     <button
@@ -669,7 +706,7 @@ export default function CanvasEditor() {
                             setShowAddTextModal(true);
                         }}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out w-full sm:w-auto">
-                        텍스트 추가
+                        텍스트
                     </button>
 
                     {isTextSelected && (
@@ -713,12 +750,6 @@ export default function CanvasEditor() {
                         onChange={handleFileInput}
                     />
 
-                    <button
-                        onClick={handleResetClick}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                        초기화
-                    </button>
-
                     <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
 
                     <button
@@ -732,6 +763,23 @@ export default function CanvasEditor() {
                     >
                         불러오기
                     </label>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+
+                    <button
+                        onClick={handleExport}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out w-full sm:w-auto">
+                        한장으로
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+
+                    <button
+                        onClick={handleResetClick}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
+                        초기화
+                    </button>
+
                     <input
                         type="file"
                         id="restoreInput"
