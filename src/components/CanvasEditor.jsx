@@ -690,7 +690,7 @@ export default function CanvasEditor() {
             </div>
 
             {/* 컨트롤 패널 - Absolute position to float over or stay at top */}
-            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white">
+            <div className="absolute left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white">
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                     <h1 className="text-xl font-extrabold text-gray-800 mr-4">Vision Board</h1>
 
