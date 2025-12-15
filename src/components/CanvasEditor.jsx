@@ -34,6 +34,30 @@ export default function CanvasEditor() {
     const [newTextContent, setNewTextContent] = useState('');
     const [editingItemId, setEditingItemId] = useState(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [isFullScreen, setIsFullScreen] = useState(false);
+
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((e) => {
+                console.error(`Error attempting to enable full-screen mode: ${e.message} (${e.name})`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
+    useEffect(() => {
+        const handleFullScreenChange = () => {
+            setIsFullScreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullScreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullScreenChange);
+        };
+    }, []);
 
     // --- Helper Functions ---
 
@@ -691,7 +715,7 @@ export default function CanvasEditor() {
             </div>
 
             {/* 컨트롤 패널 - Absolute position to float over or stay at top */}
-            <div className="absolute left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white">
+            <div className={`absolute left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white ${isFullScreen ? 'hidden' : ''}`}>
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                     <h1 className="text-xl font-extrabold text-gray-800 mr-4">Vision Board</h1>
 
@@ -771,6 +795,14 @@ export default function CanvasEditor() {
                         onClick={handleExport}
                         className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out w-full sm:w-auto">
                         한장으로
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+
+                    <button
+                        onClick={toggleFullScreen}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto">
+                        {isFullScreen ? '전체화면 해제' : '전체화면'}
                     </button>
 
                     <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
