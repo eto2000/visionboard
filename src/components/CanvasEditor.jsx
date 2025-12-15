@@ -375,7 +375,7 @@ export default function CanvasEditor() {
             const link = document.createElement('a');
             const date = new Date();
             const timestamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}`;
-            link.download = `vision-note-${timestamp}.png`;
+            link.download = `vision-board-${timestamp}.png`;
             link.href = dataUrl;
             document.body.appendChild(link);
             link.click();
@@ -415,7 +415,7 @@ export default function CanvasEditor() {
         link.href = url;
         const date = new Date();
         const timestamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}`;
-        link.download = `vision-note-backup-${timestamp}.json`;
+        link.download = `vision-board-backup-${timestamp}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
