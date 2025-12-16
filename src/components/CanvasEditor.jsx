@@ -966,11 +966,17 @@ export default function CanvasEditor() {
                                         }
                                     } else {
                                         // Create new item
+                                        // Pick random pastel color (excluding transparent if desired, or just random from list)
+                                        // User asked for "random color from provided colors", usually means visible color.
+                                        // Let's exclude transparent for the random default to make it "colorful".
+                                        const visibleColors = PASTEL_COLORS.filter(c => c !== 'transparent');
+                                        const randomColor = visibleColors[Math.floor(Math.random() * visibleColors.length)];
+
                                         const newImage = {
                                             type: 'text',
                                             text: text,
                                             color: '#000000',
-                                            backgroundColor: 'transparent',
+                                            backgroundColor: randomColor,
                                             x: (canvasSize.width - width) / 2,
                                             y: (canvasSize.height - height) / 2,
                                             width: width,
