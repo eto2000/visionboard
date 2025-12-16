@@ -41,10 +41,12 @@ export default function CanvasEditor() {
     const [textContent, setTextContent] = useState('');
     const [textColor, setTextColor] = useState('#000000');
     const [textBackgroundColor, setTextBackgroundColor] = useState('transparent');
+    const [textFontWeight, setTextFontWeight] = useState('bold');
 
     // Text Addition Modal State
     const [showAddTextModal, setShowAddTextModal] = useState(false);
     const [newTextContent, setNewTextContent] = useState('');
+    const [newTextFontWeight, setNewTextFontWeight] = useState('bold');
     const [editingItemId, setEditingItemId] = useState(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
@@ -165,7 +167,7 @@ export default function CanvasEditor() {
             // Text drawing logic
             const fontSize = 100; // Base resolution for scaling
             const lineHeight = fontSize * 1.2;
-            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.font = `${item.fontWeight || 'bold'} ${fontSize}px sans-serif`;
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'center';
 
@@ -270,7 +272,8 @@ export default function CanvasEditor() {
                 type: img.type || 'image',
                 text: img.text,
                 color: img.color,
-                backgroundColor: img.backgroundColor
+                backgroundColor: img.backgroundColor,
+                fontWeight: img.fontWeight
             }));
             await db.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
@@ -452,6 +455,7 @@ export default function CanvasEditor() {
         await db.removeItem(STORAGE_SELECTION_KEY);
         setIsTextSelected(false);
         setTextContent('');
+        setTextFontWeight('bold');
         draw();
         setShowResetConfirm(false);
     };
@@ -580,6 +584,7 @@ export default function CanvasEditor() {
                 setTextContent(clickedImage.text);
                 setTextColor(clickedImage.color || '#000000');
                 setTextBackgroundColor(clickedImage.backgroundColor || 'transparent');
+                setTextFontWeight(clickedImage.fontWeight || 'bold');
             } else {
                 setIsTextSelected(false);
             }
@@ -757,6 +762,7 @@ export default function CanvasEditor() {
                     <button
                         onClick={() => {
                             setNewTextContent('');
+                            setNewTextFontWeight('bold');
                             setEditingItemId(null);
                             setShowAddTextModal(true);
                         }}
@@ -770,6 +776,7 @@ export default function CanvasEditor() {
                                 onClick={() => {
                                     if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
                                         setNewTextContent(selectedImageRef.current.text);
+                                        setNewTextFontWeight(selectedImageRef.current.fontWeight || 'bold');
                                         setEditingItemId(selectedImageRef.current.id);
                                         setShowAddTextModal(true);
                                     }
@@ -821,6 +828,27 @@ export default function CanvasEditor() {
                                 ))}
                             </div>
                         </div>
+                    )}
+
+                    {/* Font Weight Toggle for Selected Text */}
+                    {isTextSelected && (
+                        <>
+                            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                            <button
+                                onClick={() => {
+                                    const newWeight = textFontWeight === 'bold' ? 'normal' : 'bold';
+                                    setTextFontWeight(newWeight);
+                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                        selectedImageRef.current.fontWeight = newWeight;
+                                        saveImages();
+                                        draw();
+                                    }
+                                }}
+                                className={`px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 ${textFontWeight === 'bold' ? 'font-bold bg-gray-200' : 'font-normal'}`}
+                            >
+                                B
+                            </button>
+                        </>
                     )}
 
                     <input
@@ -903,7 +931,15 @@ export default function CanvasEditor() {
             {showAddTextModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl p-6 w-96 transform transition-all scale-100">
-                        <h2 className="text-lg font-bold text-gray-900 mb-4">텍스트 추가</h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-bold text-gray-900">텍스트 추가</h2>
+                            <button
+                                onClick={() => setNewTextFontWeight(prev => prev === 'bold' ? 'normal' : 'bold')}
+                                className={`px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 transition-colors ${newTextFontWeight === 'bold' ? 'font-bold bg-gray-200 ring-2 ring-indigo-500 ring-offset-1' : 'font-normal'}`}
+                            >
+                                Bold
+                            </button>
+                        </div>
                         <textarea
                             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none h-32 text-gray-800 mb-4"
                             placeholder="내용을 입력하세요..."
@@ -930,7 +966,7 @@ export default function CanvasEditor() {
                                     const lineHeight = fontSize * 1.2;
                                     const canvas = document.createElement('canvas'); // Temp for measurement
                                     const ctx = canvas.getContext('2d');
-                                    ctx.font = `bold ${fontSize}px sans-serif`;
+                                    ctx.font = `${newTextFontWeight} ${fontSize}px sans-serif`;
 
                                     const lines = text.split('\n');
                                     let maxLineWidth = 0;
@@ -953,6 +989,7 @@ export default function CanvasEditor() {
                                             const oldCenterY = it.y + it.height / 2;
 
                                             it.text = text;
+                                            it.fontWeight = newTextFontWeight;
                                             it.name = text.length > 10 ? text.substring(0, 10) + '...' : text;
                                             it.width = width;
                                             it.height = height;
@@ -975,6 +1012,7 @@ export default function CanvasEditor() {
                                         const newImage = {
                                             type: 'text',
                                             text: text,
+                                            fontWeight: newTextFontWeight,
                                             color: '#000000',
                                             backgroundColor: randomColor,
                                             x: (canvasSize.width - width) / 2,
@@ -991,6 +1029,7 @@ export default function CanvasEditor() {
                                         setIsTextSelected(true);
                                         setTextContent(newImage.text);
                                         setTextColor(newImage.color);
+                                        setTextFontWeight(newImage.fontWeight);
                                     }
 
                                     saveImages();
