@@ -6,6 +6,18 @@ const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
 const CONTROL_HANDLE_SIZE = 12;
 const MIN_SIZE = 20;
 
+const PASTEL_COLORS = [
+    'transparent', // No background
+    '#FFB3BA', // Red
+    '#FFDFBA', // Orange
+    '#FFFFBA', // Yellow
+    '#BAFFC9', // Green
+    '#BAE1FF', // Blue
+    '#E6B3FF', // Purple
+    '#FFCBA4', // Peach
+    '#F0F8FF', // AliceBlue
+];
+
 export default function CanvasEditor() {
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -28,6 +40,7 @@ export default function CanvasEditor() {
     const [isTextSelected, setIsTextSelected] = useState(false);
     const [textContent, setTextContent] = useState('');
     const [textColor, setTextColor] = useState('#000000');
+    const [textBackgroundColor, setTextBackgroundColor] = useState('transparent');
 
     // Text Addition Modal State
     const [showAddTextModal, setShowAddTextModal] = useState(false);
@@ -168,11 +181,26 @@ export default function CanvasEditor() {
 
             const totalReferenceHeight = lines.length * lineHeight;
 
+            // Apply padding if background is present
+            const padding = (item.backgroundColor && item.backgroundColor !== 'transparent') ? 40 : 0;
+            const contentWidth = maxLineWidth + padding;
+            const contentHeight = totalReferenceHeight + padding;
+
             // Scale to fit the bounding box
-            const scaleX = item.width / maxLineWidth;
-            const scaleY = item.height / totalReferenceHeight;
+            const scaleX = item.width / contentWidth;
+            const scaleY = item.height / contentHeight;
 
             ctx.scale(scaleX, scaleY);
+
+            // Draw background if set
+            if (item.backgroundColor && item.backgroundColor !== 'transparent') {
+                ctx.fillStyle = item.backgroundColor;
+                // Draw rectangle covering the entire content area
+                const bgX = -contentWidth / 2;
+                const bgY = -contentHeight / 2;
+                ctx.fillRect(bgX, bgY, contentWidth, contentHeight);
+            }
+
             ctx.fillStyle = item.color || '#000000';
 
             lines.forEach((line, index) => {
@@ -241,7 +269,8 @@ export default function CanvasEditor() {
                 id: img.id,
                 type: img.type || 'image',
                 text: img.text,
-                color: img.color
+                color: img.color,
+                backgroundColor: img.backgroundColor
             }));
             await db.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
@@ -550,6 +579,7 @@ export default function CanvasEditor() {
                 setIsTextSelected(true);
                 setTextContent(clickedImage.text);
                 setTextColor(clickedImage.color || '#000000');
+                setTextBackgroundColor(clickedImage.backgroundColor || 'transparent');
             } else {
                 setIsTextSelected(false);
             }
@@ -762,6 +792,34 @@ export default function CanvasEditor() {
                                 }}
                                 className="w-8 h-8 rounded cursor-pointer border border-gray-300 p-0"
                             />
+
+                            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+                            {/* Background Color Picker */}
+                            <div className="flex items-center gap-1">
+                                {PASTEL_COLORS.map((color, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => {
+                                            setTextBackgroundColor(color);
+                                            if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                                selectedImageRef.current.backgroundColor = color;
+                                                saveImages();
+                                                draw();
+                                            }
+                                        }}
+                                        className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-110 ${textBackgroundColor === color ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
+                                        style={{ backgroundColor: color === 'transparent' ? 'white' : color }}
+                                        title={color === 'transparent' ? '배경 없음' : color}
+                                    >
+                                        {color === 'transparent' && (
+                                            <div className="w-full h-full relative">
+                                                <div className="absolute inset-0 border-t border-red-500 transform rotate-45 top-1/2 left-0 w-full" style={{ marginTop: '-1px' }}></div>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -912,6 +970,7 @@ export default function CanvasEditor() {
                                             type: 'text',
                                             text: text,
                                             color: '#000000',
+                                            backgroundColor: 'transparent',
                                             x: (canvasSize.width - width) / 2,
                                             y: (canvasSize.height - height) / 2,
                                             width: width,
