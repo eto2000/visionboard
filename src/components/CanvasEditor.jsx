@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as db from '../utils/indexedDB';
+import { useToast } from './ToastContext';
 
 const STORAGE_KEY = 'canvasImageEditorState';
 const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
@@ -19,6 +20,7 @@ const PASTEL_COLORS = [
 ];
 
 export default function CanvasEditor() {
+    const { showToast } = useToast();
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
     const restoreInputRef = useRef(null);
@@ -517,7 +519,8 @@ export default function CanvasEditor() {
                     saveSelection(null);
 
                     draw();
-                    alert("복구가 완료되었습니다.");
+                    showToast("복구가 완료되었습니다.", "success");
+
                 });
 
             } catch (err) {
