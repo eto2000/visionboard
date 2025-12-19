@@ -58,6 +58,10 @@ export default function CanvasEditor() {
     const [showYoutubeModal, setShowYoutubeModal] = useState(false);
     const [youtubeUrl, setYoutubeUrl] = useState('');
 
+    // Image URL Modal State
+    const [showImageUrlModal, setShowImageUrlModal] = useState(false);
+    const [imageUrl, setImageUrl] = useState('');
+
     const toggleFullScreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch((e) => {
@@ -355,6 +359,7 @@ export default function CanvasEditor() {
                         resolve(data);
                     } else {
                         const img = new Image();
+                        img.crossOrigin = 'anonymous';
                         img.onload = () => resolve({ ...data, img });
                         img.onerror = () => resolve(null);
                         img.src = data.base64Data;
@@ -539,6 +544,67 @@ export default function CanvasEditor() {
         }
     };
 
+    const addImageFromUrl = async (url) => {
+        if (!url.trim()) {
+            alert('URL을 입력해주세요.');
+            return;
+        }
+
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                // Convert to base64 for persistence
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                let base64Data;
+                try {
+                    base64Data = canvas.toDataURL('image/webp', 0.8);
+                } catch (e) {
+                    console.warn("Could not convert image to base64 due to CORS. Using URL directly.", e);
+                    base64Data = url; // Fallback to URL if CORS fails
+                }
+
+                const scale = Math.min(1, Math.min(canvasSize.width / img.width / 2, canvasSize.height / img.height / 2));
+                const newWidth = img.width * scale;
+                const newHeight = img.height * scale;
+
+                const newImage = {
+                    img: img,
+                    x: (canvasSize.width - newWidth) / 2,
+                    y: (canvasSize.height - newHeight) / 2,
+                    width: newWidth,
+                    height: newHeight,
+                    rotation: 0,
+                    name: `URL: ${url.substring(0, 30)}...`,
+                    base64Data: base64Data,
+                    id: Date.now() + Math.random(),
+                    type: 'image'
+                };
+
+                imagesRef.current.push(newImage);
+                selectedImageRef.current = newImage;
+                setSelectedImageName(newImage.name);
+                saveImages();
+                saveSelection(newImage.id);
+                draw();
+                setShowImageUrlModal(false);
+                setImageUrl('');
+                showToast('이미지가 URL에서 추가되었습니다.');
+            };
+            img.onerror = () => {
+                alert("이미지를 불러오는데 실패했습니다. URL을 확인하거나 CORS 정책을 확인해주세요.");
+            };
+            img.src = url;
+        } catch (error) {
+            console.error("Image URL expansion failed:", error);
+            alert("이미지 처리 중 오류가 발생했습니다.");
+        }
+    };
+
     const handleFileInput = (e) => {
         const files = Array.from(e.target.files);
         files.forEach(file => loadImageFromFile(file));
@@ -640,6 +706,7 @@ export default function CanvasEditor() {
                             resolve(data);
                         } else {
                             const img = new Image();
+                            img.crossOrigin = 'anonymous';
                             img.onload = () => resolve({ ...data, img });
                             img.onerror = () => resolve(null);
                             img.src = data.base64Data;
@@ -917,6 +984,15 @@ export default function CanvasEditor() {
                         className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
                         이미지
                     </label>
+
+                    <button
+                        onClick={() => {
+                            setImageUrl('');
+                            setShowImageUrlModal(true);
+                        }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-500 hover:bg-blue-600 transition duration-150 ease-in-out w-full sm:w-auto">
+                        URL 이미지
+                    </button>
 
                     <button
                         onClick={() => {
@@ -1269,6 +1345,39 @@ export default function CanvasEditor() {
                             <button
                                 onClick={() => addYoutubeThumbnail(youtubeUrl)}
                                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+                            >
+                                추가
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Image URL Input Modal */}
+            {showImageUrlModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-96 transform transition-all scale-100">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">이미지 URL 추가</h2>
+                        <input
+                            type="text"
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 mb-4"
+                            placeholder="이미지 URL을 입력하세요"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') addImageFromUrl(imageUrl);
+                            }}
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowImageUrlModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={() => addImageFromUrl(imageUrl)}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
                             >
                                 추가
                             </button>
