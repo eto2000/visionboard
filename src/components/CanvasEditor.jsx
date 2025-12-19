@@ -58,9 +58,9 @@ export default function CanvasEditor() {
     const [showYoutubeModal, setShowYoutubeModal] = useState(false);
     const [youtubeUrl, setYoutubeUrl] = useState('');
 
-    // Image URL Modal State
     const [showImageUrlModal, setShowImageUrlModal] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
+    const [showMenu, setShowMenu] = useState(false);
 
     const toggleFullScreen = () => {
         if (!document.fullscreenElement) {
@@ -607,8 +607,11 @@ export default function CanvasEditor() {
 
     const handleFileInput = (e) => {
         const files = Array.from(e.target.files);
-        files.forEach(file => loadImageFromFile(file));
-        e.target.value = '';
+        if (files.length > 0) {
+            files.forEach(file => loadImageFromFile(file));
+            setShowMenu(false);
+        }
+        e.target.value = null; // Reset for same file selection
     };
 
     const handleExport = () => {
@@ -692,48 +695,59 @@ export default function CanvasEditor() {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                const jsonContent = event.target.result;
-                const parsedData = JSON.parse(jsonContent);
+                const data = JSON.parse(event.target.result);
+                if (!Array.isArray(data)) throw new Error('Invalid backup format');
 
-                if (!Array.isArray(parsedData)) {
-                    throw new Error("Invalid backup file format");
+                const newImages = [];
+                let loadedCount = 0;
+
+                if (data.length === 0) {
+                    imagesRef.current = [];
+                    saveImages();
+                    draw();
+                    showToast('데이터가 성공적으로 복구되었습니다.');
+                    setShowMenu(false);
+                    return;
                 }
 
-                // Validate basic structure if needed, or just trust it for now but handle image loading
-                Promise.all(parsedData.map(data =>
-                    new Promise((resolve) => {
-                        if (data.type === 'text') {
-                            resolve(data);
-                        } else {
-                            const img = new Image();
-                            img.crossOrigin = 'anonymous';
-                            img.onload = () => resolve({ ...data, img });
-                            img.onerror = () => resolve(null);
-                            img.src = data.base64Data;
-                        }
-                    })
-                )).then(images => {
-                    const validImages = images.filter(Boolean);
-                    imagesRef.current = validImages;
-                    saveImages(); // Save to local storage
-
-                    selectedImageRef.current = null;
-                    setSelectedImageName('없음');
-                    setIsTextSelected(false);
-                    saveSelection(null);
-
-                    draw();
-                    showToast("복구가 완료되었습니다.", "success");
-
+                data.forEach(item => {
+                    if (item.type === 'text') {
+                        newImages.push(item);
+                        loadedCount++;
+                    } else {
+                        const img = new Image();
+                        img.onload = () => {
+                            item.img = img;
+                            newImages.push(item);
+                            loadedCount++;
+                            if (loadedCount === data.length) {
+                                imagesRef.current = newImages;
+                                saveImages();
+                                draw();
+                                showToast('데이터가 성공적으로 복구되었습니다.');
+                                setShowMenu(false);
+                            }
+                        };
+                        img.onerror = () => {
+                            loadedCount++;
+                            if (loadedCount === data.length) {
+                                imagesRef.current = newImages;
+                                saveImages();
+                                draw();
+                                showToast('데이터가 성공적으로 복구되었습니다.');
+                                setShowMenu(false);
+                            }
+                        };
+                        img.src = item.base64Data;
+                    }
                 });
-
-            } catch (err) {
-                console.error("Failed to restore:", err);
-                alert("백업 파일을 불러오는 중 오류가 발생했습니다.");
+            } catch (error) {
+                console.error('Restore failed:', error);
+                alert('복구 중 오류가 발생했습니다.');
             }
         };
         reader.readAsText(file);
-        e.target.value = ''; // Reset input
+        e.target.value = null;
     };
 
     const handleDoubleClick = (e) => {
@@ -971,190 +985,253 @@ export default function CanvasEditor() {
 
     return (
         <div className="w-full h-screen flex flex-col relative overflow-hidden">
-            <div className="absolute bottom-2 right-4 z-50 text-gray-400 text-xs font-medium pointer-events-none select-none">
-                soocoolkim@gmail.com
-            </div>
+            {/* 메뉴 토글 버튼 */}
+            {!isFullScreen && (
+                <button
+                    onClick={() => setShowMenu(true)}
+                    className="absolute top-4 left-4 z-20 p-3 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 transition-all hover:bg-white text-gray-700 active:scale-95"
+                    aria-label="메뉴 열기"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            )}
 
-            {/* 컨트롤 패널 - Absolute position to float over or stay at top */}
-            <div className={`absolute left-4 right-4 z-10 flex flex-col sm:flex-row gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-100 max-w-fit mx-auto transition-all hover:bg-white ${isFullScreen ? 'hidden' : ''}`}>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <h1 className="text-xl font-extrabold text-gray-800 mr-4">Vision Board</h1>
+            {/* 사이드바 배경 (클릭 시 닫기) */}
+            {showMenu && !isFullScreen && (
+                <div
+                    className="absolute inset-0 z-30 bg-black/20 backdrop-blur-[2px] transition-opacity duration-300"
+                    onClick={() => setShowMenu(false)}
+                />
+            )}
 
-                    <label htmlFor="fileInput"
-                        className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out w-full sm:w-auto">
-                        이미지
-                    </label>
+            {/* 컨트롤 패널 - 사이드바 형태 */}
+            <div className={`fixed top-0 left-0 bottom-0 z-40 w-72 bg-white/95 backdrop-blur-md shadow-2xl border-r border-gray-100 transform transition-transform duration-300 ease-in-out flex flex-col ${showMenu && !isFullScreen ? 'translate-x-0' : '-translate-x-full'} ${isFullScreen ? 'hidden' : ''}`}>
+                <div className="p-6 flex flex-col h-full overflow-y-auto">
+                    <div className="flex items-center justify-between mb-8">
+                        <h1 className="text-2xl font-black text-indigo-600 tracking-tighter italic">VISION BOARD</h1>
+                        <button
+                            onClick={() => setShowMenu(false)}
+                            className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
 
-                    <button
-                        onClick={() => {
-                            setImageUrl('');
-                            setShowImageUrlModal(true);
-                        }}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-500 hover:bg-blue-600 transition duration-150 ease-in-out w-full sm:w-auto">
-                        URL 이미지
-                    </button>
+                    <div className="space-y-6">
+                        {/* 이미지 추가 세션 */}
+                        <div className="space-y-3">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">추가하기</p>
 
-                    <button
-                        onClick={() => {
-                            setNewTextContent('');
-                            setNewTextFontWeight('bold');
-                            setEditingItemId(null);
-                            setShowAddTextModal(true);
-                        }}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out w-full sm:w-auto">
-                        텍스트
-                    </button>
+                            <label htmlFor="fileInput"
+                                className="flex items-center gap-3 cursor-pointer w-full px-4 py-3 text-sm font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100 transition-all active:scale-[0.98]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                이미지 파일
+                            </label>
 
-                    <button
-                        onClick={() => {
-                            setYoutubeUrl('');
-                            setShowYoutubeModal(true);
-                        }}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out w-full sm:w-auto">
-                        유튜브
-                    </button>
-
-                    {isTextSelected && (
-                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => {
-                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
-                                        setNewTextContent(selectedImageRef.current.text);
-                                        setNewTextFontWeight(selectedImageRef.current.fontWeight || 'bold');
-                                        setEditingItemId(selectedImageRef.current.id);
-                                        setShowAddTextModal(true);
-                                    }
+                                    setImageUrl('');
+                                    setShowImageUrlModal(true);
+                                    setShowMenu(false);
                                 }}
-                                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-gray-700"
-                            >
-                                텍스트 수정
+                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-xl text-white bg-blue-500 hover:bg-blue-600 shadow-md shadow-blue-100 transition-all active:scale-[0.98]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                URL 이미지
                             </button>
-                            <input
-                                type="color"
-                                value={textColor}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setTextColor(val);
-                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
-                                        selectedImageRef.current.color = val;
-                                        saveImages();
-                                        draw();
-                                    }
+
+                            <button
+                                onClick={() => {
+                                    setNewTextContent('');
+                                    setNewTextFontWeight('bold');
+                                    setEditingItemId(null);
+                                    setShowAddTextModal(true);
+                                    setShowMenu(false);
                                 }}
-                                className="w-8 h-8 rounded cursor-pointer border border-gray-300 p-0"
-                            />
+                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-100 transition-all active:scale-[0.98]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                텍스트 추가
+                            </button>
 
-                            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                            <button
+                                onClick={() => {
+                                    setYoutubeUrl('');
+                                    setShowYoutubeModal(true);
+                                    setShowMenu(false);
+                                }}
+                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-xl text-white bg-rose-500 hover:bg-rose-600 shadow-md shadow-rose-100 transition-all active:scale-[0.98]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                유튜브 썸네일
+                            </button>
+                        </div>
 
-                            {/* Background Color Picker */}
-                            <div className="flex items-center gap-1">
-                                {PASTEL_COLORS.map((color, index) => (
+                        {/* 선택된 텍스트 편집 (조건부) */}
+                        {isTextSelected && (
+                            <div className="space-y-3 pt-4 border-t border-gray-100">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">텍스트 편집</p>
+                                <div className="p-4 bg-gray-50 rounded-2xl space-y-4">
                                     <button
-                                        key={index}
                                         onClick={() => {
-                                            setTextBackgroundColor(color);
                                             if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
-                                                selectedImageRef.current.backgroundColor = color;
-                                                saveImages();
-                                                draw();
+                                                setNewTextContent(selectedImageRef.current.text);
+                                                setNewTextFontWeight(selectedImageRef.current.fontWeight || 'bold');
+                                                setEditingItemId(selectedImageRef.current.id);
+                                                setShowAddTextModal(true);
+                                                setShowMenu(false);
                                             }
                                         }}
-                                        className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-110 ${textBackgroundColor === color ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
-                                        style={{ backgroundColor: color === 'transparent' ? 'white' : color }}
-                                        title={color === 'transparent' ? '배경 없음' : color}
+                                        className="w-full px-4 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors shadow-sm"
                                     >
-                                        {color === 'transparent' && (
-                                            <div className="w-full h-full relative">
-                                                <div className="absolute inset-0 border-t border-red-500 transform rotate-45 top-1/2 left-0 w-full" style={{ marginTop: '-1px' }}></div>
-                                            </div>
-                                        )}
+                                        내용 수정
                                     </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Font Weight Toggle for Selected Text */}
-                    {isTextSelected && (
-                        <>
-                            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-500 font-medium">글자 색상</span>
+                                        <input
+                                            type="color"
+                                            value={textColor}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setTextColor(val);
+                                                if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                                    selectedImageRef.current.color = val;
+                                                    saveImages();
+                                                    draw();
+                                                }
+                                            }}
+                                            className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200 p-0.5"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <span className="text-xs text-gray-500 font-medium block">배경 색상</span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {PASTEL_COLORS.map((color, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => {
+                                                        setTextBackgroundColor(color);
+                                                        if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                                            selectedImageRef.current.backgroundColor = color;
+                                                            saveImages();
+                                                            draw();
+                                                        }
+                                                    }}
+                                                    className={`w-7 h-7 rounded-full border border-gray-200 transition-all hover:scale-110 ${textBackgroundColor === color ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                                                    style={{ backgroundColor: color === 'transparent' ? 'white' : color }}
+                                                >
+                                                    {color === 'transparent' && (
+                                                        <div className="w-full h-full relative overflow-hidden rounded-full">
+                                                            <div className="absolute inset-0 border-t border-red-500 transform rotate-45 top-1/2 left-0 w-full" style={{ marginTop: '-1px' }}></div>
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-500 font-medium">글꼴 굵게</span>
+                                        <button
+                                            onClick={() => {
+                                                const newWeight = textFontWeight === 'bold' ? 'normal' : 'bold';
+                                                setTextFontWeight(newWeight);
+                                                if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
+                                                    selectedImageRef.current.fontWeight = newWeight;
+                                                    saveImages();
+                                                    draw();
+                                                }
+                                            }}
+                                            className={`px-4 py-2 text-sm border rounded-lg transition-all ${textFontWeight === 'bold' ? 'font-bold bg-indigo-50 border-indigo-200 text-indigo-600' : 'font-normal bg-white border-gray-200 text-gray-700'}`}
+                                        >
+                                            Bold
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 관리 세션 */}
+                        <div className="space-y-3 pt-4 border-t border-gray-100">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">내보내기 & 관리</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={handleBackup}
+                                    className="flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold rounded-xl text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-all">
+                                    백업
+                                </button>
+                                <label htmlFor="restoreInput"
+                                    className="flex items-center justify-center gap-2 cursor-pointer px-4 py-3 text-xs font-bold rounded-xl text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-all text-center">
+                                    불러오기
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleExport}
+                                className="flex items-center justify-center gap-3 w-full px-4 py-3 text-sm font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                이미지로 저장
+                            </button>
+
                             <button
                                 onClick={() => {
-                                    const newWeight = textFontWeight === 'bold' ? 'normal' : 'bold';
-                                    setTextFontWeight(newWeight);
-                                    if (selectedImageRef.current && selectedImageRef.current.type === 'text') {
-                                        selectedImageRef.current.fontWeight = newWeight;
-                                        saveImages();
-                                        draw();
-                                    }
+                                    toggleFullScreen();
+                                    setShowMenu(false);
                                 }}
-                                className={`px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 ${textFontWeight === 'bold' ? 'font-bold bg-gray-200' : 'font-normal'}`}
-                            >
-                                B
+                                className="flex items-center justify-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-all">
+                                {isFullScreen ? '전체화면 해제' : '전체화면 보기'}
                             </button>
-                        </>
-                    )}
 
+                            <button
+                                onClick={() => {
+                                    handleResetClick();
+                                    setShowMenu(false);
+                                }}
+                                className="flex items-center justify-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-xl text-rose-500 bg-rose-50 hover:bg-rose-100 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                전체 초기화
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mt-auto pt-8 pb-4 text-right pr-2">
+                        <p className="text-[10px] text-gray-400 font-medium tracking-tight">soocoolkim@gmail.com</p>
+                    </div>
+                </div>
+
+                {/* 숨겨진 Input 요소들 */}
+                <div className="hidden">
                     <input
                         type="file"
                         id="fileInput"
                         ref={fileInputRef}
                         accept="image/*"
                         multiple
-                        className="hidden"
                         onChange={handleFileInput}
                     />
-
-                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
-
-                    <button
-                        onClick={handleBackup}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                        백업
-                    </button>
-
-                    <label htmlFor="restoreInput"
-                        className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto text-center"
-                    >
-                        불러오기
-                    </label>
-
-                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
-
-                    <button
-                        onClick={handleExport}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out w-full sm:w-auto">
-                        한장으로
-                    </button>
-
-                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
-
-                    <button
-                        onClick={toggleFullScreen}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                        {isFullScreen ? '전체화면 해제' : '전체화면'}
-                    </button>
-
-                    <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
-
-                    <button
-                        onClick={handleResetClick}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition duration-150 ease-in-out w-full sm:w-auto">
-                        초기화
-                    </button>
-
                     <input
                         type="file"
                         id="restoreInput"
                         ref={restoreInputRef}
                         accept=".json"
-                        className="hidden"
                         onChange={handleRestore}
                     />
-
-                    {/* <div className="text-sm font-medium text-gray-700">
-                        <span className="font-semibold text-indigo-600">{selectedImageName !== '없음' ? selectedImageName : ''}</span>
-                    </div> */}
                 </div>
             </div>
 
@@ -1225,8 +1302,6 @@ export default function CanvasEditor() {
                                     const height = lines.length * lineHeight;
 
                                     if (editingItemId) {
-                                        // Update existing item
-                                        // Refetch to do it right:
                                         const foundIndex = imagesRef.current.findIndex(i => i.id === editingItemId);
                                         if (foundIndex !== -1) {
                                             const it = imagesRef.current[foundIndex];
@@ -1247,10 +1322,6 @@ export default function CanvasEditor() {
                                             setTextContent(text);
                                         }
                                     } else {
-                                        // Create new item
-                                        // Pick random pastel color (excluding transparent if desired, or just random from list)
-                                        // User asked for "random color from provided colors", usually means visible color.
-                                        // Let's exclude transparent for the random default to make it "colorful".
                                         const visibleColors = PASTEL_COLORS.filter(c => c !== 'transparent');
                                         const randomColor = visibleColors[Math.floor(Math.random() * visibleColors.length)];
 
@@ -1352,6 +1423,7 @@ export default function CanvasEditor() {
                     </div>
                 </div>
             )}
+
             {/* Image URL Input Modal */}
             {showImageUrlModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
