@@ -5,6 +5,7 @@ import { useToast } from './ToastContext';
 const STORAGE_KEY = 'canvasImageEditorState';
 const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
 const CONTROL_HANDLE_SIZE = 12;
+const LINK_ICON_SIZE = 24;
 const MIN_SIZE = 20;
 
 const PASTEL_COLORS = [
@@ -52,6 +53,10 @@ export default function CanvasEditor() {
     const [editingItemId, setEditingItemId] = useState(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
+
+    // YouTube Modal State
+    const [showYoutubeModal, setShowYoutubeModal] = useState(false);
+    const [youtubeUrl, setYoutubeUrl] = useState('');
 
     const toggleFullScreen = () => {
         if (!document.fullscreenElement) {
@@ -138,6 +143,29 @@ export default function CanvasEditor() {
             rotatedX <= handleRight &&
             rotatedY >= handleTop &&
             rotatedY <= handleBottom;
+    };
+
+    const isPointInLinkIcon = (x, y, image) => {
+        if (image !== selectedImageRef.current || !image.url) return false;
+
+        const centerX = image.x + image.width / 2;
+        const centerY = image.y + image.height / 2;
+        const angle = -image.rotation;
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const rotatedX = dx * cos - dy * sin;
+        const rotatedY = dx * sin + dy * cos;
+
+        const iconHalfSize = LINK_ICON_SIZE / 2;
+        const iconX = image.width / 2 - iconHalfSize;
+        const iconY = -image.height / 2 + iconHalfSize;
+
+        return rotatedX >= iconX - iconHalfSize &&
+            rotatedX <= iconX + iconHalfSize &&
+            rotatedY >= iconY - iconHalfSize &&
+            rotatedY <= iconY + iconHalfSize;
     };
 
     // --- Drawing Functions ---
@@ -243,6 +271,34 @@ export default function CanvasEditor() {
         ctx.strokeStyle = '#fff';
         ctx.stroke();
 
+        // YouTube/Link Icon at Top Right
+        if (image.url) {
+            ctx.save();
+            const iconX = image.width / 2 - LINK_ICON_SIZE / 2;
+            const iconY = -image.height / 2 + LINK_ICON_SIZE / 2;
+            ctx.translate(iconX, iconY);
+
+            // Background (Red Circle or Rounded Rect)
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(-LINK_ICON_SIZE / 2, -LINK_ICON_SIZE / 2, LINK_ICON_SIZE, LINK_ICON_SIZE, 4);
+            } else {
+                ctx.rect(-LINK_ICON_SIZE / 2, -LINK_ICON_SIZE / 2, LINK_ICON_SIZE, LINK_ICON_SIZE);
+            }
+            ctx.fill();
+
+            // White Triangle
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            const triSize = LINK_ICON_SIZE * 0.4;
+            ctx.moveTo(-triSize / 3, -triSize / 2.5);
+            ctx.lineTo(-triSize / 3, triSize / 2.5);
+            ctx.lineTo(triSize / 2, 0);
+            ctx.fill();
+            ctx.restore();
+        }
+
         ctx.restore();
     };
 
@@ -275,7 +331,8 @@ export default function CanvasEditor() {
                 text: img.text,
                 color: img.color,
                 backgroundColor: img.backgroundColor,
-                fontWeight: img.fontWeight
+                fontWeight: img.fontWeight,
+                url: img.url
             }));
             await db.setItem(STORAGE_KEY, JSON.stringify(storableImages));
         } catch (e) {
@@ -401,6 +458,86 @@ export default function CanvasEditor() {
     };
 
     // --- Event Handlers ---
+
+    const getYoutubeId = (url) => {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/|live\/)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    };
+
+    const addYoutubeThumbnail = async (url) => {
+        const videoId = getYoutubeId(url);
+        if (!videoId) {
+            alert('올바른 유튜브 URL을 입력해주세요.');
+            return;
+        }
+
+        // Try maxresdefault first, then hqdefault as fallback
+        const tryLoadImage = (id, quality = 'maxresdefault') => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    // Check if it's the 120x90 "not found" image
+                    if (img.width === 120 && img.height === 90 && quality === 'maxresdefault') {
+                        reject(new Error('Thumbnail not available in maxresdefault'));
+                        return;
+                    }
+                    resolve(img);
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = `https://i.ytimg.com/vi/${id}/${quality}.jpg`;
+            });
+        };
+
+        try {
+            let img;
+            try {
+                img = await tryLoadImage(videoId, 'maxresdefault');
+            } catch (e) {
+                img = await tryLoadImage(videoId, 'hqdefault');
+            }
+
+            // Convert to base64 for persistence and export
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const base64Data = canvas.toDataURL('image/jpeg');
+
+            const scale = Math.min(1, Math.min(canvasSize.width / img.width / 2, canvasSize.height / img.height / 2));
+            const newWidth = img.width * scale;
+            const newHeight = img.height * scale;
+
+            const newImage = {
+                img: img,
+                x: (canvasSize.width - newWidth) / 2,
+                y: (canvasSize.height - newHeight) / 2,
+                width: newWidth,
+                height: newHeight,
+                rotation: 0,
+                name: `YouTube: ${videoId}`,
+                base64Data: base64Data,
+                url: url,
+                id: Date.now() + Math.random(),
+                type: 'image'
+            };
+
+            imagesRef.current.push(newImage);
+            selectedImageRef.current = newImage;
+            setSelectedImageName(newImage.name);
+            saveImages();
+            saveSelection(newImage.id);
+            draw();
+            setShowYoutubeModal(false);
+            setYoutubeUrl('');
+            showToast('유튜브 썸네일이 추가되었습니다.');
+        } catch (error) {
+            console.error("YouTube thumbnail failed:", error);
+            alert("썸네일을 가져오는데 실패했습니다.");
+        }
+    };
 
     const handleFileInput = (e) => {
         const files = Array.from(e.target.files);
@@ -532,6 +669,19 @@ export default function CanvasEditor() {
         e.target.value = ''; // Reset input
     };
 
+    const handleDoubleClick = (e) => {
+        const pos = getMousePos(e);
+        for (let i = imagesRef.current.length - 1; i >= 0; i--) {
+            const image = imagesRef.current[i];
+            if (isPointInImage(pos.x, pos.y, image)) {
+                if (image.url) {
+                    window.open(image.url, '_blank');
+                }
+                break;
+            }
+        }
+    };
+
     const handleMouseDown = (e) => {
         e.preventDefault(); // Prevent scrolling on touch
         const pos = getMousePos(e);
@@ -539,9 +689,15 @@ export default function CanvasEditor() {
 
         let clickedImage = null;
 
-        // Check handle first (reverse order)
+        // Check handle and link icon first (reverse order)
         for (let i = imagesRef.current.length - 1; i >= 0; i--) {
             const image = imagesRef.current[i];
+
+            if (isPointInLinkIcon(pos.x, pos.y, image)) {
+                window.open(image.url, '_blank');
+                return;
+            }
+
             if (isPointInHandle(pos.x, pos.y, image)) {
                 selectedImageRef.current = image;
                 isResizingOrRotatingRef.current = true;
@@ -773,6 +929,15 @@ export default function CanvasEditor() {
                         텍스트
                     </button>
 
+                    <button
+                        onClick={() => {
+                            setYoutubeUrl('');
+                            setShowYoutubeModal(true);
+                        }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out w-full sm:w-auto">
+                        유튜브
+                    </button>
+
                     {isTextSelected && (
                         <div className="flex items-center gap-2">
                             <button
@@ -924,6 +1089,7 @@ export default function CanvasEditor() {
                     id="imageCanvas"
                     className="block touch-none"
                     onMouseDown={handleMouseDown}
+                    onDoubleClick={handleDoubleClick}
                     onTouchStart={(e) => {
                         if (e.touches.length === 1) handleMouseDown(e);
                     }}
@@ -1071,6 +1237,40 @@ export default function CanvasEditor() {
                                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
                             >
                                 확인
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* YouTube URL Input Modal */}
+            {showYoutubeModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-96 transform transition-all scale-100">
+                        <h2 className="text-lg font-bold text-gray-900 mb-4">유튜브 썸네일 추가</h2>
+                        <input
+                            type="text"
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-gray-800 mb-4"
+                            placeholder="유튜브 URL을 입력하세요 (예: https://youtu.be/...)"
+                            value={youtubeUrl}
+                            onChange={(e) => setYoutubeUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') addYoutubeThumbnail(youtubeUrl);
+                            }}
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowYoutubeModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={() => addYoutubeThumbnail(youtubeUrl)}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+                            >
+                                추가
                             </button>
                         </div>
                     </div>
