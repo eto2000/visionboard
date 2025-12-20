@@ -6,6 +6,7 @@ const STORAGE_KEY = 'canvasImageEditorState';
 const STORAGE_SELECTION_KEY = 'canvasActiveSelection';
 const CONTROL_HANDLE_SIZE = 12;
 const LINK_ICON_SIZE = 24;
+const DELETE_ICON_SIZE = 24;
 const MIN_SIZE = 20;
 
 const PASTEL_COLORS = [
@@ -172,6 +173,29 @@ export default function CanvasEditor() {
             rotatedY <= iconY + iconHalfSize;
     };
 
+    const isPointInDeleteIcon = (x, y, image) => {
+        if (image !== selectedImageRef.current) return false;
+
+        const centerX = image.x + image.width / 2;
+        const centerY = image.y + image.height / 2;
+        const angle = -image.rotation;
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const rotatedX = dx * cos - dy * sin;
+        const rotatedY = dx * sin + dy * cos;
+
+        const iconHalfSize = DELETE_ICON_SIZE / 2;
+        const iconX = -image.width / 2 + iconHalfSize;
+        const iconY = -image.height / 2 + iconHalfSize;
+
+        return rotatedX >= iconX - iconHalfSize &&
+            rotatedX <= iconX + iconHalfSize &&
+            rotatedY >= iconY - iconHalfSize &&
+            rotatedY <= iconY + iconHalfSize;
+    };
+
     // --- Drawing Functions ---
 
     const draw = () => {
@@ -302,6 +326,30 @@ export default function CanvasEditor() {
             ctx.fill();
             ctx.restore();
         }
+
+        // Delete Icon at Top Left
+        ctx.save();
+        const delIconX = -image.width / 2 + DELETE_ICON_SIZE / 2;
+        const delIconY = -image.height / 2 + DELETE_ICON_SIZE / 2;
+        ctx.translate(delIconX, delIconY);
+
+        // Background (Red Circle)
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(0, 0, DELETE_ICON_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White X
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const xSize = DELETE_ICON_SIZE * 0.25;
+        ctx.moveTo(-xSize, -xSize);
+        ctx.lineTo(xSize, xSize);
+        ctx.moveTo(xSize, -xSize);
+        ctx.lineTo(-xSize, xSize);
+        ctx.stroke();
+        ctx.restore();
 
         ctx.restore();
     };
@@ -651,6 +699,20 @@ export default function CanvasEditor() {
         }
     };
 
+    const handleDeleteItem = () => {
+        if (selectedImageRef.current) {
+            const selectedImage = selectedImageRef.current;
+            imagesRef.current = imagesRef.current.filter(img => img !== selectedImage);
+            selectedImageRef.current = null;
+            setSelectedImageName('없음');
+            setIsTextSelected(false);
+            saveImages();
+            saveSelection(null);
+            draw();
+            showToast('아이템이 삭제되었습니다.');
+        }
+    };
+
     const handleResetClick = () => {
         setShowResetConfirm(true);
     };
@@ -773,6 +835,11 @@ export default function CanvasEditor() {
         // Check handle and link icon first (reverse order)
         for (let i = imagesRef.current.length - 1; i >= 0; i--) {
             const image = imagesRef.current[i];
+
+            if (isPointInDeleteIcon(pos.x, pos.y, image)) {
+                handleDeleteItem();
+                return;
+            }
 
             if (isPointInLinkIcon(pos.x, pos.y, image)) {
                 window.open(image.url, '_blank');
@@ -958,15 +1025,7 @@ export default function CanvasEditor() {
         // Keyboard events
         const handleKeyDown = (e) => {
             if (e.key === 'Backspace' && selectedImageRef.current) {
-                const selectedImage = selectedImageRef.current;
-                imagesRef.current = imagesRef.current.filter(img => img !== selectedImage);
-                selectedImageRef.current = null;
-                selectedImageRef.current = null;
-                setSelectedImageName('없음');
-                setIsTextSelected(false);
-                saveImages();
-                saveSelection(null); // Clear selection
-                draw();
+                handleDeleteItem();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
